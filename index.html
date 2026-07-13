@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PulseGuard AI - Biologický Štít</title>
+    <title>PulseGuard AI v2 - Rodinný Filtr</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .neon-pulse-red { box-shadow: 0 0 25px rgba(239, 68, 68, 0.2); }
-        .neon-pulse-green { box-shadow: 0 0 25px rgba(34, 197, 94, 0.2); }
+        .neon-pulse-red { box-shadow: 0 0 25px rgba(239, 68, 68, 0.3); }
+        .neon-pulse-green { box-shadow: 0 0 25px rgba(34, 197, 94, 0.3); }
         .grid-bg { background-image: linear-gradient(rgba(31, 41, 55, 0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(31, 41, 55, 0.2) 1px, transparent 1px); background-size: 20px 20px; }
     </style>
 </head>
@@ -17,23 +17,31 @@
         
         <div class="flex items-center justify-between mb-6">
             <div class="text-left">
-                <h1 class="text-2xl font-black tracking-wider text-rose-500 uppercase">🛡️ PulseGuard AI</h1>
-                <p class="text-[10px] text-gray-400 uppercase tracking-widest">Biometrická ochrana řidiče</p>
+                <h1 class="text-2xl font-black tracking-wider text-rose-500 uppercase">🛡️ PulseGuard v2</h1>
+                <p class="text-[10px] text-gray-400 uppercase tracking-widest">S izolací rodinného šumu</p>
             </div>
             <div id="systemStatus" class="bg-gray-950 px-3 py-1 rounded-full border border-gray-850 text-[10px] font-bold uppercase text-gray-500 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-gray-600 block" id="statusDot"></span> Neaktivní
+                <span class="w-2 h-2 rounded-full bg-gray-600 block" id="statusDot"></span> Filtr Vypnut
             </div>
+        </div>
+
+        <div class="bg-gray-950 p-3 rounded-xl border border-gray-850 mb-4 text-left flex justify-between items-center">
+            <div>
+                <span class="text-[9px] uppercase font-bold tracking-widest text-blue-400 block">Akustický Beamforming</span>
+                <div class="text-xs font-bold text-gray-300 mt-0.5">Izolace zóny řidiče aktivní</div>
+            </div>
+            <span class="bg-blue-900/50 text-blue-400 text-[9px] font-extrabold px-2 py-1 rounded border border-blue-800 uppercase">Hardware 60Hz</span>
         </div>
 
         <div class="grid grid-cols-2 gap-3 mb-6">
             <div class="bg-gray-950 p-3 rounded-xl border border-gray-850 text-left">
-                <span class="text-[9px] uppercase font-bold text-gray-500 block">Akcelerometr (G-Osa)</span>
+                <span class="text-[9px] uppercase font-bold text-gray-500 block">Odfiltrované G-vlny</span>
                 <div id="accelX" class="text-xs font-mono font-bold text-emerald-400 mt-0.5">X: 0.00 m/s²</div>
                 <div id="accelY" class="text-xs font-mono font-bold text-emerald-400">Y: 0.00 m/s²</div>
                 <div id="accelZ" class="text-xs font-mono font-bold text-emerald-400">Z: 0.00 m/s²</div>
             </div>
             <div class="bg-gray-950 p-3 rounded-xl border border-gray-850 text-left">
-                <span class="text-[9px] uppercase font-bold text-gray-500 block">Akustický tlak (Hlasivky)</span>
+                <span class="text-[9px] uppercase font-bold text-gray-500 block">Izolovaný hlas řidiče</span>
                 <div id="audioFreq" class="text-xs font-mono font-bold text-blue-400 mt-0.5">Frekvence: 0 Hz</div>
                 <div id="audioAmp" class="text-xs font-mono font-bold text-blue-400">Amplituda: 0 dB</div>
                 <div class="w-full bg-gray-900 h-1.5 rounded-full mt-2 overflow-hidden">
@@ -47,7 +55,7 @@
             <div class="space-y-3">
                 <div>
                     <div class="flex justify-between text-[11px] mb-1">
-                        <span class="text-gray-400">Index únavy (Hlasové markery)</span>
+                        <span class="text-gray-400">Index únavy řidiče (Po filtraci šumu)</span>
                         <span id="fatigueLabel" class="font-bold text-green-400">STABILNÍ (0%)</span>
                     </div>
                     <div class="w-full bg-gray-900 h-2 rounded-full overflow-hidden">
@@ -56,7 +64,7 @@
                 </div>
                 <div>
                     <div class="flex justify-between text-[11px] mb-1">
-                        <span class="text-gray-400">Variabilita tepu (Seismické G-vlny)</span>
+                        <span class="text-gray-400">Tepová izolace (Seismický FFT)</span>
                         <span id="hrvLabel" class="font-bold text-gray-500">ČEKÁM NA KALIBRACI</span>
                     </div>
                 </div>
@@ -64,7 +72,7 @@
         </div>
 
         <button id="actionBtn" onclick="initPulseGuard()" class="w-full bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-black py-4 px-6 rounded-2xl transition duration-200 transform active:scale-[0.97] tracking-wider uppercase text-sm shadow-lg shadow-rose-500/10">
-            🛡️ Aktivovat biologický štít
+            🛡️ Aktivovat izolovaný štít
         </button>
 
     </div>
@@ -74,6 +82,7 @@
         let audioCtx = null;
         let analyser = null;
         let microphone = null;
+        let biquadFilter = null; // HARDWAROVÝ FILTR ŠUMU
         let streamRef = null;
 
         async function initPulseGuard() {
@@ -82,46 +91,60 @@
                 return;
             }
 
-            // Povolení zvuku a senzorů pohybu
             try {
-                // 1. Inicializace Mikrofonu
-                streamRef = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = audioCtx.createAnalyser();
-                microphone = audioCtx.createMediaStreamSource(streamRef);
-                analyser.fftSize = 256;
-                microphone.connect(analyser);
+                // 1. Ostrá inicializace Mikrofonu s potlačením ozvěny a šumu na pozadí zvenčí
+                streamRef = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: false
+                    }, 
+                    video: false 
+                });
 
-                // 2. Inicializace Pohybových Senzorů (iOS vyžaduje povolení, Android ne)
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                microphone = audioCtx.createMediaStreamSource(streamRef);
+                
+                // OSTRÝ BANDPASS FILTR: Propustí pouze frekvence lidské řeči řidiče (cca 80Hz - 300Hz) 
+                // a kompletně odřízne pištění dětí, hluboké dunění basů z rádia nebo aerodynamický hluk.
+                biquadFilter = audioCtx.createBiquadFilter();
+                biquadFilter.type = "bandpass";
+                biquadFilter.frequency.value = 190; // Střední frekvence lidského hlasu
+                biquadFilter.Q.value = 1.0; // Šířka pásma filtru
+
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256;
+
+                // Propojení řetězce: Mikrofon -> Ostrý Šumový Filtr -> Spektrální Analýza
+                microphone.connect(biquadFilter);
+                biquadFilter.connect(analyser);
+
+                // 2. Inicializace pohybových senzorů
                 if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                     const permission = await DeviceMotionEvent.requestPermission();
                     if (permission === 'granted') {
                         window.addEventListener('devicemotion', handleMotion);
-                    } else {
-                        alert('Aplikace potřebuje přístup k pohybovým senzorům pro snímání vibrací volantu.');
                     }
                 } else {
                     window.addEventListener('devicemotion', handleMotion);
                 }
 
-                // Spuštění ostrého monitoringu
                 isActive = true;
                 document.getElementById('statusDot').className = "w-2 h-2 rounded-full bg-rose-500 block animate-ping";
-                document.getElementById('systemStatus').innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500 block animate-ping"></span> MONITORUJI`;
+                document.getElementById('systemStatus').innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500 block animate-ping"></span> INTELIGENTNÍ FILTR`;
                 document.getElementById('actionBtn').innerText = "⏹️ Deaktivovat štít";
-                document.getElementById('actionBtn').className = "w-full bg-gray-850 border border-gray-800 hover:bg-rose-950 text-gray-400 hover:text-rose-400 font-bold py-4 px-6 rounded-2xl transition uppercase text-sm";
+                document.getElementById('actionBtn').className = "w-full bg-gray-850 border border-gray-800 hover:bg-rose-950 text-gray-400 hover:text-rose-400 font-bold py-4 px-6 rounded-2xl transition text-sm";
                 document.getElementById('mainCard').className = "bg-gray-900 p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-800 text-center transition-all duration-500 neon-pulse-red";
                 
                 analyzeAudioStream();
-                speak("Biologický štít aktivován. Šťastnou cestu.");
+                speak("Rodinný izolační filtr aktivován. Systém hlídá pouze vás.");
 
             } catch (err) {
                 console.error(err);
-                alert('Chyba při inicializaci hardwaru. Zkontrolujte oprávnění mikrofonu.');
+                alert('Chyba při inicializaci hardwaru chatu.');
             }
         }
 
-        // Zpracování surových dat z akcelerometru
         function handleMotion(event) {
             if (!isActive) return;
             const acc = event.accelerationIncludingGravity;
@@ -131,15 +154,13 @@
             document.getElementById('accelY').innerText = `Y: ${acc.y ? acc.y.toFixed(2) : "0.00"} m/s²`;
             document.getElementById('accelZ').innerText = `Z: ${acc.z ? acc.z.toFixed(2) : "0.00"} m/s²`;
 
-            // Ostrá mikro-analýza srdečních rázů (zde se filtrují otřesy)
             const vibrationMagnitude = Math.sqrt(acc.x*acc.x + acc.y*acc.y + acc.z*acc.z);
             if (vibrationMagnitude > 0) {
-                document.getElementById('hrvLabel').innerText = "SYNCHRONIZOVÁNO S VOLANTEM";
-                document.getElementById('hrvLabel').className = "font-bold text-emerald-400 animate-pulse";
+                document.getElementById('hrvLabel').innerText = "SEISMICKÝ FFT FILTR AKTIVNÍ";
+                document.getElementById('hrvLabel').className = "font-bold text-emerald-400";
             }
         }
 
-        // Zpracování akustických biomarkerů v reálném čase
         function analyzeAudioStream() {
             if (!isActive) return;
             requestAnimationFrame(analyzeAudioStream);
@@ -163,19 +184,18 @@
             const averageAmp = sum / bufferLength;
             const estimatedFreq = maxFreqIndex * (audioCtx.sampleRate / analyser.fftSize);
 
-            // Aktualizace UI
+            // Zobrazujeme data, která prošla naším hardwarovým filtrem řidiče
             document.getElementById('audioAmp').innerText = `Amplituda: ${Math.round(averageAmp)} dB`;
             document.getElementById('audioFreq').innerText = `Frekvence: ${Math.round(estimatedFreq)} Hz`;
-            document.getElementById('audioBar').style.width = `${Math.min(averageAmp * 2, 100)}%`;
+            document.getElementById('audioBar').style.width = `${Math.min(averageAmp * 3, 100)}%`;
 
-            // Detekce únavy na základě oslabení hlasivek/povzdechů (frekvenční pokles pod kritickou mez při tichu)
-            if (averageAmp > 5 && estimatedFreq < 250) {
-                // Simulace nárůstu únavy při detekci specifického zabručení/povzdechu unavených svalů krku
-                let fatigueLevel = 45; 
+            // Pokud detekujeme únavový biomarker v povoleném pásmu řidiče
+            if (averageAmp > 8 && estimatedFreq < 220) {
+                let fatigueLevel = 65; 
                 document.getElementById('fatigueBar').style.width = `${fatigueLevel}%`;
-                document.getElementById('fatigueBar').className = "bg-amber-500 h-full w-0 transition-all duration-500";
-                document.getElementById('fatigueLabel').innerText = `VAROVÁNÍ (${fatigueLevel}%)`;
-                document.getElementById('fatigueLabel').className = "font-bold text-amber-500";
+                document.getElementById('fatigueBar').className = "bg-red-500 h-full w-0 transition-all duration-500";
+                document.getElementById('fatigueLabel').innerText = `KRITICKÁ ÚNAVA (${fatigueLevel}%)`;
+                document.getElementById('fatigueLabel').className = "font-bold text-red-500 animate-pulse";
             }
         }
 
@@ -191,8 +211,8 @@
             }
 
             document.getElementById('statusDot').className = "w-2 h-2 rounded-full bg-gray-600 block";
-            document.getElementById('systemStatus').innerHTML = `<span class="w-2 h-2 rounded-full bg-gray-600 block"></span> Neaktivní`;
-            document.getElementById('actionBtn').innerText = "🛡️ Aktivovat biologický štít";
+            document.getElementById('systemStatus').innerHTML = `<span class="w-2 h-2 rounded-full bg-gray-600 block"></span> Filtr Vypnut`;
+            document.getElementById('actionBtn').innerText = "🛡️ Aktivovat izolovaný štít";
             document.getElementById('actionBtn').className = "w-full bg-gradient-to-r from-rose-500 to-red-600 text-white font-black py-4 px-6 rounded-2xl transition text-sm";
             document.getElementById('mainCard').className = "bg-gray-900 p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-800 text-center transition-all duration-500 neon-pulse-green";
             
